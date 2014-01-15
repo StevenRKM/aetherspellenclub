@@ -5,9 +5,23 @@
     <script src="jquery-2.0.3.min.js" type="text/javascript"></script>
     <script>
 
-    $(function() {
+    var guild = undefined;
 
-        console.log('loading data');
+    $(function() {
+        load_guild();
+    });
+
+    /* -- LOAD FROM BGG API -- */
+
+    function load_guild() {
+
+        console.log('loading guild');
+
+        // super var
+        guild = {
+            members: [],
+            games: {}
+        };
 
         $.ajax({
             url: '/bggapi/xmlapi2/guild?id=1576&members=1',
@@ -15,73 +29,110 @@
             dataType: "xml"
         }).success(function(data){
 
-            console.log('retrieved data');
+            console.log('loaded guild');
 
-            members = $(data).find('member');
+            var members = $(data).find('member');
 
-            for (i = 0; i < members.length; i++) {
-                add_member_collection(members[i].getAttribute('name'));
+            for (var i = 0; i < members.length; i++) {
+                var member = {
+                    id: undefined,
+                    username: members[i].getAttribute('name'),
+                    firstname: undefined,
+                    lastname: undefined,
+                    collection: []
+                };
+
+                guild.members.push(member);
+
+                load_member_collection(member);
             }
 
         }).error(function(data){
-            console.log('woops');
+            console.log('woops, couldn\'t load guild');
         });
 
-    });
+    }
 
-    function add_member_collection(member) {
+
+    function load_member_collection(member) {
 
         $.ajax({
-            url: '/bggapi/xmlapi2/collection?username='+member+'&own=1',
+            url: '/bggapi/xmlapi2/collection?username='+member.username+'&own=1',
             contentType: "application/xml; charset=utf-8",
             dataType: "xml"
         }).success(function(data){
 
-            console.log('retrieved data');
+            console.log('loading guild member collection of '+member.username);
 
-            collection = $('<div id='+member+'><h2>'+member+'</h2><br /><div></div></div>');
+            var items = $(data).find('item')
+            for (var i = 0; i < items.length; i++) {
 
-            items = $(data).find('item')
-            for (i = 0; i < items.length; i++) {
+                // add game to collection
+                var id = $(items[i]).attr('objectid');
 
-                collection.find('div').append(
-                        $('<img />', {src: $(items[i]).find('thumbnail').text()})
-                );
+                member.collection.push(id);
+
+                if(guild.games[id] == undefined) {
+                    guild.games[id] = {
+                        id: id,
+                        name: $(items[i]).find('name').text(),
+                        image: $(items[i]).find('image').text(),
+                        thumbnail: $(items[i]).find('thumbnail').text()
+                    }
+                } else {
+                    console.log('double found for '+member.username+' on '+$(items[i]).find('name').text());
+                }
+
             }
 
-            collection.hide();
-            collection.appendTo('#collections');
-
-            add_member_name(member);
+            load_member_name(member);
 
         }).error(function(data){
-            console.log('woops');
+            console.log('woops, couldn\'t load member collection of '+member.username);
         });
 
 
     }
 
-
-    function add_member_name(member) {
-
+    function load_member_name(member) {
 
         $.ajax({
-            url: '/bggapi/xmlapi2/user?name='+member,
+            url: '/bggapi/xmlapi2/user?name='+member.username,
             contentType: "application/xml; charset=utf-8",
             dataType: "xml"
         }).success(function(data){
 
-            console.log('retrieved data');
+            console.log('loading guild member info of '+member.username);
 
-            $('#' + member+' h2').text( $(data).find('firstname').attr('value') + ' ' + $(data).find('lastname').attr('value') );
-            $('#' + member).show();
+            member.firstname = $(data).find('firstname').attr('value');
+            member.lastname = $(data).find('lastname').attr('value');
+
+            display_member_collection(member)
 
         }).error(function(data){
-            console.log('woops');
-
-            console.log('display ' + member);
-            $('#' + member).show();
+            console.log('woops, couldn\'t load member info of '+member.username);
         });
+
+    }
+
+
+    /* -- DISPLAY -- */
+
+    function display_member_collection(member) {
+
+        var collection = $('<div id='+member.username+'><h2>'+member.firstname+' '+member.lastname+'</h2><br /><div></div></div>');
+
+        for (var i = 0; i < member.collection.length; i++) {
+
+            var id = member.collection[i];
+            var game = guild.games[id];
+
+            collection.find('div').append(
+                    $('<img />', {src: game.thumbnail})
+            );
+        }
+
+        collection.appendTo('#collections');
 
     }
 
