@@ -1,0 +1,24 @@
+{
+  "name": "aetherspellenclub",
+  "version": "0.0.0",
+  "description": "aether website",
+  "main": "web.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/StevenRKM/aetherspellenclub.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/StevenRKM/aetherspellenclub/issues"
+  },
+  "homepage": "https://github.com/StevenRKM/aetherspellenclub",
+  "dependencies": {
+    "http-proxy": "~0.10.4",
+    "express": "~3.4.7",
+    "logfmt": "~0.18.1"
+  }
+}
