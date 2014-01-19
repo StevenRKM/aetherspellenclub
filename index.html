@@ -2,26 +2,74 @@
 <html>
 <head>
     <title>Aether Spellenclub</title>
-    <script src="jquery-2.0.3.min.js" type="text/javascript"></script>
+    <script src="js/jquery-2.0.3.min.js" type="text/javascript"></script>
     <script>
 
     var guild = undefined;
 
     $(function() {
-        load_guild();
+        // check local storage
+
+        if(false && localStorage.getItem('guild') != undefined) {
+            guild = JSON.parse(localStorage.getItem('guild'));
+            display_member_collection(guild.members[0]);
+//            for (var i in  guild.members) {
+//                display_member_collection(guild.members[i]);
+//            }
+        } else {
+            load_guild();
+
+            $(guild).bind('loaded_guild', function() {console.log('FULLY LOADED GUILD');})
+
+            $(guild).bind('loaded_member', function(event, member) {display_member_collection(member)});
+            $(guild).bind('loaded_member_collection', check_member_loading);
+            $(guild).bind('loaded_member_info', check_member_loading);
+        }
+
+
+
+//        new Date().getTime();
     });
+
+    /* -- LOADING EVENTS -- */
+
+    var _members_loaded = {};
+
+    function check_member_loading(event, member) {
+        var guild_loaded = true;
+
+        for (var i = 0; i < guild.members.length; i++) {
+            var guild_member = guild.members[i];
+            var member_loaded = (guild_member.collection!=undefined && guild_member.firstname!=undefined);
+
+            if(guild_member.username == member.username) {
+                if(member_loaded) {
+                    $(guild).trigger('loaded_member', member);
+                } else {
+                    return;
+                }
+            }
+
+            if(!member_loaded) {
+                guild_loaded = false;
+            }
+        }
+
+        if(guild_loaded) {
+            $(guild).trigger('loaded_guild');
+        }
+    }
 
     /* -- LOAD FROM BGG API -- */
 
     function load_guild() {
 
-        console.log('loading guild');
-
-        // super var
         guild = {
             members: [],
             games: {}
         };
+
+        console.log('. guild');
 
         $.ajax({
             url: '/bggapi/xmlapi2/guild?id=1576&members=1',
@@ -29,7 +77,7 @@
             dataType: "xml"
         }).success(function(data){
 
-            console.log('loaded guild');
+            console.log('+ guild');
 
             var members = $(data).find('member');
 
@@ -39,12 +87,12 @@
                     username: members[i].getAttribute('name'),
                     firstname: undefined,
                     lastname: undefined,
-                    collection: []
+                    collection: undefined,
                 };
 
                 guild.members.push(member);
 
-                load_member_collection(member);
+                load_member(member);
             }
 
         }).error(function(data){
@@ -53,39 +101,51 @@
 
     }
 
+    function load_member(member) {
+        load_member_collection(member);
+        load_member_name(member);
+    }
 
     function load_member_collection(member) {
+
+        console.log('. member collection of '+member.username);
 
         $.ajax({
             url: '/bggapi/xmlapi2/collection?username='+member.username+'&own=1',
             contentType: "application/xml; charset=utf-8",
-            dataType: "xml"
+            dataType: "xml",
+            async: true,
         }).success(function(data){
 
-            console.log('loading guild member collection of '+member.username);
+            console.log('+ member collection of '+member.username);
+
+            var collection = [];
 
             var items = $(data).find('item')
             for (var i = 0; i < items.length; i++) {
+                var item = items[i];
 
                 // add game to collection
-                var id = $(items[i]).attr('objectid');
+                var id = $(item).attr('objectid');
 
-                member.collection.push(id);
+                collection.push(id);
 
                 if(guild.games[id] == undefined) {
                     guild.games[id] = {
                         id: id,
-                        name: $(items[i]).find('name').text(),
-                        image: $(items[i]).find('image').text(),
-                        thumbnail: $(items[i]).find('thumbnail').text()
+                        name: $(item).find('name').text(),
+                        image: $(item).find('image').text(),
+                        thumbnail: $(item).find('thumbnail').text()
                     }
                 } else {
-                    console.log('double found for '+member.username+' on '+$(items[i]).find('name').text());
+                    //console.log('double found for '+member.username+' on '+$(items[i]).find('name').text());
                 }
 
             }
 
-            load_member_name(member);
+            member.collection = collection;
+
+            $(guild).trigger('loaded_member_collection', [member]);
 
         }).error(function(data){
             console.log('woops, couldn\'t load member collection of '+member.username);
@@ -96,23 +156,24 @@
 
     function load_member_name(member) {
 
+        console.log('. member info of '+member.username);
+
         $.ajax({
             url: '/bggapi/xmlapi2/user?name='+member.username,
             contentType: "application/xml; charset=utf-8",
             dataType: "xml"
         }).success(function(data){
 
-            console.log('loading guild member info of '+member.username);
+            console.log('+ loaded member info of '+member.username);
 
             member.firstname = $(data).find('firstname').attr('value');
             member.lastname = $(data).find('lastname').attr('value');
 
-            display_member_collection(member)
+            $(guild).trigger('loaded_member_info', [member]);
 
         }).error(function(data){
             console.log('woops, couldn\'t load member info of '+member.username);
         });
-
     }
 
 
@@ -123,9 +184,8 @@
         var collection = $('<div id='+member.username+'><h2>'+member.firstname+' '+member.lastname+'</h2><br /><div></div></div>');
 
         for (var i = 0; i < member.collection.length; i++) {
-
-            var id = member.collection[i];
-            var game = guild.games[id];
+            var game_id = member.collection[i];
+            var game = guild.games[game_id];
 
             collection.find('div').append(
                     $('<img />', {src: game.thumbnail})
@@ -137,6 +197,14 @@
     }
 
     </script>
+
+    <style>
+
+    img:hover {
+        -webkit-filter: sepia(1) opacity(0.5);
+    }
+
+    </style>
 
 </head>
 <body>
